@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>전기차 충전 예약</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background-color: white;
+      color: navy;
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    .time-slot {
+      margin: 8px 0;
+    }
+
+    .unavailable {
+      color: gray;
+    }
+
+    #confirmation {
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h2>전기차 충전 예약</h2>
+
+  <input type="text" id="dept" placeholder="부서" required>
+  <input type="text" id="name" placeholder="이름" required>
+  <input type="date" id="date" required>
+
+  <div id="timeSlots"></div>
+  <button id="reserveBtn" style="display:none;">예약하기</button>
+  <div id="confirmation"></div>
+
+  <script>
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbxUv2IuM7fEUtzyJOhi3Bjy1MWUXYiLcrV5MwejyNAp0NhnY_4Ba76voW9-FauXre8/exec"; // ← 실제 URL로 교체 필요
+    const timeOptions = ["08:00~10:00", "10:00~12:00", "13:00~15:00", "15:00~17:00"];
+    let selectedDate = "";
+
+    document.getElementById("date").addEventListener("change", async function () {
+      selectedDate = this.value;
+      const res = await fetch(scriptUrl + "?date=" + selectedDate);
+      const booked = await res.json();
+      const reservedTimes = booked[selectedDate] || [];
+
+      const timeDiv = document.getElementById("timeSlots");
+      timeDiv.innerHTML = "";
+      const reservedTimesSet = new Set(reservedTimes);
+
+      timeOptions.forEach(time => {
+        const div = document.createElement("div");
+        if (reservedTimesSet.has(time)) {
+          div.innerHTML = `<label class="unavailable">${time} - [예약불가]</label>`;
+        } else {
+          div.innerHTML = `<label><input type="radio" name="timeSlot" value="${time}"> ${time}</label>`;
+        }
+        timeDiv.appendChild(div);
+      });
+
+      document.getElementById("reserveBtn").style.display = "block";
+      document.getElementById("confirmation").innerText = "";
+    });
+
+    document.getElementById("reserveBtn").addEventListener("click", async function () {
+      const dept = document.getElementById("dept").value.trim();
+      const name = document.getElementById("name").value.trim();
+      const time = document.querySelector('input[name="timeSlot"]:checked')?.value;
+      const confirmation = document.getElementById("confirmation");
+
+      if (!dept || !name || !selectedDate || !time) {
+        confirmation.innerText = "❗ 모든 항목을 입력하고 시간대를 선택하세요.";
+        confirmation.style.color = "red";
+        return;
+      }
+
+      const res = await fetch(scriptUrl, {
+        method: "POST",
+        body: JSON.stringify({ dept, name, date: selectedDate, time }),
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const text = await res.text();
+      if (text === "duplicate") {
+        confirmation.innerText = "⚠️ 이미 예약된 시간대입니다.";
+        confirmation.style.color = "red";
+      } else {
+        confirmation.innerText = "✅ 예약 완료되었습니다.";
+        confirmation.style.color = "green";
+        document.getElementById("date").dispatchEvent(new Event("change"));
+        document.querySelector('input[name="timeSlot"]:checked').checked = false;
+      }
+    });
+  </script>
+</body>
+</html>
